@@ -25,6 +25,7 @@ char *get_arg_value(char *name, int arg, int argc, char **argv) {
 
 char delimiter = ',';
 char use_stdin = 0;
+size_t minimum_read_size = 4096;
 
 char **input_files = NULL;
 size_t input_files_size = 16;
@@ -39,6 +40,77 @@ void add_file(char *file_name) {
         input_files = realloc(input_files, sizeof(char *) * input_files_size);
     }
     input_files[input_files_count++] = file_name;
+}
+
+char *buffer = NULL;
+size_t buffer_size = 0;
+char *buffer_pos = NULL;
+char *buffer_end = NULL;
+char eof = 0;
+
+char *fill_buffer(FILE *fp) {
+    int pos = buffer_pos - buffer;
+    int space_left = buffer_size - pos;
+    memcpy(buffer, buffer_pos, buffer_end - buffer_pos);
+    buffer_end = buffer + pos + fread(buffer, buffer_size, 1, fp);
+    if (space_left < minimum_read_size) {  // todo: check alloc error
+        buffer_size *= 2;
+        buffer = realloc(buffer, buffer_size);
+        buffer_pos = buffer;
+        space_left = buffer_size - pos;
+    }
+    char *line = buffer + pos;
+    buffer_end = buffer + pos + fread(line, 1, space_left, fp);
+    return line;
+}
+
+char *read_line(FILE *fp) {
+    if (buffer == NULL) {
+        buffer_size = minimum_read_size * 2;
+        buffer = malloc(sizeof(buffer_size));
+        buffer_pos = buffer;
+        buffer_end = buffer + fread(buffer, 1, buffer_size, fp);
+    }
+
+    char *line = buffer_pos;
+    char *current = buffer_pos;
+
+    if (buffer_pos >= buffer_end && feof(fp)) {
+        printf("EOF");
+        fflush(stdout);
+        return NULL;
+    }
+
+    while (1) {
+        while (*current != '\r' && *current != '\n' && current <= buffer_end) {
+            current++;
+        }
+        if (current <= buffer_end) {
+            *current = 0;
+            buffer_pos = current + 1;
+            if (*current == '\r' && current < buffer_end && *(current + 1) == '\n') {
+                buffer_pos++;
+            }
+            return line;
+        } else {
+            current = fill_buffer(fp);
+            line = buffer;
+
+            if (buffer_pos == buffer_end && feof(fp)) {
+                *current = 0;
+                return line;
+            }
+        }
+    }
+}
+
+void process(FILE *fp) {
+    char *line;
+    int i = 0;
+    while ((line = read_line(fp)) != NULL) {
+        printf("%d: %s\n", i++, line);
+        fflush(stdout);
+    }
 }
 
 #ifndef UNIT_TEST
@@ -62,11 +134,16 @@ int main(int argc, char **argv) {
         return (1);
     }
 
-    printf("%d\n", input_files_count);
-    fflush(stdout);
-    for (int i = 0; i < input_files_count; i++) {
-        printf("%d: '%s'\n", i, input_files[i]);
-        fflush(stdout);
+    if (use_stdin) {
+        freopen(NULL, "rb", stdin);
+        process(stdin);
+    } else {
+        for (int i = 0; i < input_files_count; i++) {
+            // todo: check file open error
+            FILE *fp = fopen(input_files[i], "rb");
+            process(fp);
+            fclose(fp);
+        }
     }
     return 0;
 }
@@ -161,10 +238,7 @@ void test_file_list_add() {
 }
 
 void test_is_arg() {
-    char *argv[] = {
-        "-d",
-        "--delimiter",
-        "--non-matching"};
+    char *argv[] = {"-d", "--delimiter", "--non-matching"};
 
     int i = 0;
     _assert(IS_ARG("-d", "--delimiter"));
