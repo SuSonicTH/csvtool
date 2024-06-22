@@ -1,3 +1,7 @@
 csvtool
 csvtool.exe
 .vscode/
+.idea/
+*.ilk
+*.obj
+*.pdb
