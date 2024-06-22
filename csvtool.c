@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define UNIT_TEST 1
+// #define UNIT_TEST 1
 
 #define NOT_SET NULL
 #define ARG_EQUALS(arg) (arg != NULL && strcmp(argv[i], arg) == 0)
@@ -40,13 +40,24 @@ char *buffer_pos = NULL;
 char *buffer_end = NULL;
 char eof = 0;
 
+#define EXIT_IF(expression, ...)                                        \
+    if ((expression)) {                                                 \
+        fprintf(stderr, "Error in %s() line %d: ", __func__, __LINE__); \
+        fprintf(stderr, __VA_ARGS__);                                   \
+        fprintf(stderr, "\n");                                          \
+        exit(9);                                                        \
+    }
+
 void fill_buffer(FILE *fp, char **current, char **line) {
     int line_len = (*current - *line);
     int space_left = buffer_size - line_len;
-    memcpy(buffer, *line, line_len);
+    if (space_left) {
+        memcpy(buffer, *line, line_len);
+    }
     if (space_left < minimum_read_size) {  // todo: check alloc error
         buffer_size *= 2;
         buffer = realloc(buffer, buffer_size);
+        EXIT_IF(buffer == NULL, "could not allocate memory for buffer");
         space_left = buffer_size - line_len;
     }
     *current = buffer + line_len;
@@ -57,6 +68,7 @@ void fill_buffer(FILE *fp, char **current, char **line) {
 void read_line_init(FILE *fp) {
     buffer_size = minimum_read_size * 2;
     buffer = (char *)malloc(buffer_size);
+    EXIT_IF(buffer == NULL, "could not allocate memory for buffer");
     buffer_pos = buffer;
     int read = fread(buffer, 1, buffer_size, fp);
     buffer_end = buffer + read;
@@ -145,7 +157,7 @@ int main(int argc, char **argv) {
     } else {
         for (int i = 0; i < input_files_count; i++) {
             FILE *fp = fopen(input_files[i], "rb");
-            assert(fp != NULL);
+            EXIT_IF(fp == NULL, "could not open file '%s' for reading", input_files[i]);
             if (i == 0) {
                 read_line_init(fp);
             }
