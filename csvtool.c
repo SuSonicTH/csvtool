@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -169,105 +168,28 @@ int main(int argc, char **argv) {
 }
 #endif
 
-/**************\
-|  UNIT Tests  |
-\**************/
-
 #ifdef UNIT_TEST
-int tests_run = 0;
-int tests_failed = 0;
-int assertions = 0;
-int assertions_failed = 0;
-int failures = 0;
-
-#define FAIL()           \
-    assertions_failed++; \
-    printf("failure in %s() line %d\n", __func__, __LINE__)
-
-#define _assert(test)  \
-    do {               \
-        assertions++;  \
-        if (!(test)) { \
-            FAIL();    \
-        }              \
-    } while (0)
-
-#define _assert_not(test) \
-    do {                  \
-        assertions++;     \
-        if ((test)) {     \
-            FAIL();       \
-        }                 \
-    } while (0)
-
-#define _verify(test)                       \
-    do {                                    \
-        failures = assertions_failed;       \
-        printf("running " #test ": ");      \
-        test();                             \
-        tests_run++;                        \
-        if (assertions_failed > failures) { \
-            printf("\n" #test " FAILED\n"); \
-            tests_failed++;                 \
-        } else {                            \
-            printf("PASSED\n");             \
-        }                                   \
-    } while (0)
-
-int _str_equals(char *expected, char *actual) {
-    if (actual == NULL) {
-        actual = "%NULL%";
-    }
-    if (strcmp(expected, actual) != 0) {
-        printf("\nexpected \"%s\" got \"%s\"\n", expected, actual);
-        return 0;
-    }
-    return 1;
-}
-
-int _number_equals(size_t expected, size_t actual) {
-    if (expected != actual) {
-        printf("\nexpected %d got %d\n", expected, actual);
-        return 0;
-    }
-    return 1;
-}
-
-int _is_NULL(void *ptr) {
-    if (ptr != NULL) {
-        printf("\nexpected NULL got \"%p\"\n", ptr);
-        return 0;
-    }
-    return 1;
-}
-
-int _is_not_NULL(void *ptr) {
-    if (ptr == NULL) {
-        printf("\nexpected not NULL\n");
-        return 0;
-    }
-    return 1;
-}
+#include "unit_test.h"
 
 void test_is_arg() {
     char *argv[] = {"-d", "--delimiter", "--non-matching"};
 
     int i = 0;
-    _assert(IS_ARG("-d", "--delimiter"));
-    _assert(IS_ARG("-d", NOT_SET));
+    ut_assert(IS_ARG("-d", "--delimiter"));
+    ut_assert(IS_ARG("-d", NOT_SET));
 
     i = 1;
-    _assert(IS_ARG("-d", "--delimiter"));
-    _assert(IS_ARG(NOT_SET, "--delimiter"));
+    ut_assert(IS_ARG("-d", "--delimiter"));
+    ut_assert(IS_ARG(NOT_SET, "--delimiter"));
 
     i = 2;
-    _assert_not(IS_ARG("-d", "--delimiter"));
+    ut_assert_not(IS_ARG("-d", "--delimiter"));
 }
 
 void _write_lines_to_file(char *file_name, char *eol, char **lines) {
     size_t eol_size = strlen(eol);
     FILE *fp = fopen(file_name, "wb");
-    assert(fp != NULL);
+    EXIT_IF(fp == NULL, "could not open file '%s'", file_name);
     while (*lines != NULL) {
         fwrite(*lines, strlen(*lines), 1, fp);
         fwrite(eol, eol_size, 1, fp);
@@ -282,37 +204,24 @@ void test_readLine() {
     _write_lines_to_file(TEST_FILE_NAME, "\n", test_lines);
 
     FILE *fp = fopen(TEST_FILE_NAME, "rb");
-    assert(fp != NULL);
+    EXIT_IF(fp == NULL, "could not open file '%s'", TEST_FILE_NAME);
 
     minimum_read_size = 2;  // tet extra low to trigger multiple buffer size doublings
     read_line_init(fp);
 
     char **line = test_lines;
     while (*line != NULL) {
-        _assert(_str_equals(*line, read_line(fp)));
+        ut_assert(ut_str_equals(*line, read_line(fp)));
         line++;
     }
-    _assert(_is_NULL(read_line(fp)));
+    ut_assert(ut_is_NULL(read_line(fp)));
     fclose(fp);
 }
 
 int main(int argc, char **argv) {
-    _verify(test_is_arg);
-    _verify(test_readLine);
+    ut_run(test_is_arg);
+    ut_run(test_readLine);
 
-    printf("\n");
-    printf(" Tests run %d\n", tests_run);
-    printf("    failed %d\n", tests_failed);
-    printf("\n");
-    printf("assertions %d\n", assertions);
-    printf("    failed %d\n", assertions_failed);
-
-    if (tests_failed != 0) {
-        printf("\nFAILED\n");
-        return 1;
-    }
-
-    printf("\nPASSED\n");
-    return 0;
+    return ut_end();
 }
 #endif  // UNIT_TEST
