@@ -27,7 +27,7 @@ void csv_line_deinit(csv_line_s *csv_line) {
     }
 }
 
-csv_line_free(csv_line_s *csv_line) {
+void csv_line_free(csv_line_s *csv_line) {
     if (csv_line != NULL) {
         csv_line_deinit(csv_line);
         free(csv_line);
