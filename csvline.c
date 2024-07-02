@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef UNIT_TEST
+#define UNIT_TEST
+#endif
+
 typedef struct {
     uint8_t *buffer;
     size_t size;
@@ -61,6 +65,7 @@ void csv_line_fill_buffer(csv_line_s *csv, FILE *fp) {
         if (csv->start > 0) {
             size_t len = csv->end - csv->start;
             memcpy(csv->buffer, &csv->buffer[csv->start], len);
+            csv->start = 0;
             csv->end = len;
             space = csv->size - csv->end;
         }
@@ -69,7 +74,6 @@ void csv_line_fill_buffer(csv_line_s *csv, FILE *fp) {
             csv->buffer = realloc(csv->buffer, csv->size);  // todo: check alloc
         }
     }
-
     size_t read = fread(&csv->buffer[csv->end], 1, csv->read_size, fp);
     csv->eof = feof(fp);
     csv->end += read;
@@ -132,7 +136,7 @@ void test_fill_buffer() {
     csv_line_init(&csv, 2, 0);
 
     uint8_t iter = 0;
-    while (++iter < 9 && !csv.eof) {
+    while (iter++ < 8 && !csv.eof) {
         csv_line_fill_buffer(&csv, fp);
     }
 
@@ -145,10 +149,44 @@ void test_fill_buffer() {
     csv_line_free(&csv);
 }
 
+void test_fill_buffer_keep_data() {
+    char *TEST_FILE = "test/test_fill_buffer.txt";
+    char *TEST_DATA = "is a test";
+    char *EXPECTED_DATA = "This is a test";
+    size_t EXPECTED_DATA_LEN = strlen(EXPECTED_DATA);
+
+    create_test_file(TEST_FILE, TEST_DATA);
+
+    FILE *fp = fopen(TEST_FILE, "rb");
+    ut_assert(ut_is_not_NULL(fp));
+
+    csv_line_s csv;
+    csv_line_init(&csv, 10, 0);
+
+    csv.start = 5;
+    strcat(&csv.buffer[csv.start], "This ");
+    csv.end = 10;
+
+    uint8_t iter = 0;
+    while (iter++ < 1 && !csv.eof) {
+        csv_line_fill_buffer(&csv, fp);
+    }
+
+    ut_assert(csv.eof);
+    ut_assert(ut_number_equals(20, csv.size));
+    ut_assert(ut_number_equals(0, csv.start));
+    ut_assert(ut_number_equals(EXPECTED_DATA_LEN, csv.end));
+    ut_assert(memcmp(csv.buffer, EXPECTED_DATA, EXPECTED_DATA_LEN) == 0);
+
+    fclose(fp);
+    csv_line_free(&csv);
+}
+
 int main(int argc, char **argv) {
     ut_run(test_init_free);
     ut_run(test_init_defaults);
     ut_run(test_fill_buffer);
+    ut_run(test_fill_buffer_keep_data);
     return ut_end();
 }
 
