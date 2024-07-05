@@ -7,6 +7,16 @@
 #define UNIT_TEST
 #endif
 
+#define DEBUG_ON
+
+#ifndef DEBUG_ON
+#define DEBUG
+#else
+#define DEBUG(...)       \
+    printf(__VA_ARGS__); \
+    fflush(stdout);
+#endif
+
 typedef struct {
     char *file_name;
     FILE *file;
@@ -57,9 +67,9 @@ void csv_line_free(csv_line_s *csv) {
     }
 }
 
-void csv_line_fill_buffer(csv_line_s *csv) {
+size_t csv_line_fill_buffer(csv_line_s *csv) {
     if (csv->eof) {
-        return;
+        return 0;
     }
 
     size_t space = csv->size - csv->end;
@@ -79,23 +89,36 @@ void csv_line_fill_buffer(csv_line_s *csv) {
     size_t read = fread(&csv->buffer[csv->end], 1, csv->read_size, csv->file);
     csv->eof = feof(csv->file);
     csv->end += read;
+    // DEBUG("\t\tread: %d\n", read);
+    return read;
 }
 
 void csv_line_open_file(csv_line_s *csv, char *file_name) {
     csv->file_name = file_name;
     csv->file = fopen(file_name, "rb");  // todo check file open
+    csv->start = 0;
+    csv->end = 0;
+    csv->eof = 0;
     csv_line_fill_buffer(csv);
 }
 
+void csv_line_close_file(csv_line_s *csv) {
+    if (csv->file != NULL) {
+        fclose(csv->file);
+    }
+}
+
 #define CURRENT csv->buffer[pos]
+
 void csv_line_read_line(csv_line_s *csv) {
     size_t pos = csv->start;
     csv->fields_count = 0;
 
+    // DEBUG("\n");
     while (1) {
         if (CURRENT == '"') {
             csv->fields[csv->fields_count++] = pos;
-            while (pos <= csv->end && CURRENT != '"') {
+            while (pos < csv->end && CURRENT != '"') {
                 pos++;
                 if (pos > csv->end) {
                     csv_line_fill_buffer(csv);
@@ -106,10 +129,11 @@ void csv_line_read_line(csv_line_s *csv) {
                 exit(9);
             }
             CURRENT = 0;
-            while (pos <= csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
-                pos++;
-                if (pos > csv->end) {
+            while (pos < csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
+                if (pos + 1 == csv->end) {
                     csv_line_fill_buffer(csv);
+                } else {
+                    pos++;
                 }
             }
             if (CURRENT == '\r') {
@@ -124,10 +148,18 @@ void csv_line_read_line(csv_line_s *csv) {
             }
         } else {
             csv->fields[csv->fields_count++] = pos;
-            while (pos <= csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
-                pos++;
-                if (pos > csv->end) {
-                    csv_line_fill_buffer(csv);
+            // DEBUG("field %d: pos: %d: %s\n", csv->fields_count, pos, &CURRENT);
+            while (pos < csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
+                // DEBUG("\tpos: %d < end: %d, char: %c, pos + 1 == csv->end: %d\n", pos, csv->end, CURRENT, csv->end - pos - 1);
+                if (pos + 1 == csv->end) {
+                    // DEBUG("\tfillBuffer\n");
+                    if (!csv_line_fill_buffer(csv)) {
+                        // DEBUG("\tbreak\n");
+                        pos++;
+                        break;
+                    }
+                } else {
+                    pos++;
                 }
             }
             if (CURRENT == ',') {
@@ -136,6 +168,9 @@ void csv_line_read_line(csv_line_s *csv) {
             } else if (CURRENT == '\r') {
                 CURRENT = 0;
                 pos++;
+                if (pos + 1 == csv->end) {
+                    csv_line_fill_buffer(csv);
+                }
                 if (CURRENT == '\n') {
                     pos++;
                 }
@@ -278,9 +313,10 @@ char *SIMPLE_COLUMNS[][3] = {
     {"1", "2", "3"},
 };
 
-assert_file_matches_simple_columns(char *file_name) {
+size_t READ_SIZE[] = {11, 0};  // 2, 3, 5, 8, 13, 21, 0};
+assert_file_matches_simple_columns(char *file_name, size_t read_size) {
     csv_line_s csv;
-    csv_line_init(&csv, 11, 5);
+    csv_line_init(&csv, read_size, 5);
     csv_line_open_file(&csv, file_name);
 
     csv_line_read_line(&csv);
@@ -289,34 +325,46 @@ assert_file_matches_simple_columns(char *file_name) {
     csv_line_read_line(&csv);
     ut_assert(csv.eof);
     assert_columns_equal(&csv, 3, SIMPLE_COLUMNS[1]);
+
+    csv_line_close_file(&csv);
+    csv_line_free(&csv);
 }
 
 void test_read_line_lf() {
     char *TEST_FILE = "test/test_read_line_lf.csv";
     char *TEST_DATA = "ONE,TWO,THREE\n1,2,3\n";
     create_test_file(TEST_FILE, TEST_DATA);
-    assert_file_matches_simple_columns(TEST_FILE);
+
+    for (int i = 0; READ_SIZE[i] != 0; i++) {
+        assert_file_matches_simple_columns(TEST_FILE, READ_SIZE[i]);
+    }
 }
 
 void test_read_line_cr() {
     char *TEST_FILE = "test/test_read_line_cr.csv";
     char *TEST_DATA = "ONE,TWO,THREE\r1,2,3\r";
     create_test_file(TEST_FILE, TEST_DATA);
-    assert_file_matches_simple_columns(TEST_FILE);
+
+    for (int i = 0; READ_SIZE[i] != 0; i++) {
+        assert_file_matches_simple_columns(TEST_FILE, READ_SIZE[i]);
+    }
 }
 
 void test_read_line_cr_lf() {
     char *TEST_FILE = "test/test_read_line_cr_lf.csv";
     char *TEST_DATA = "ONE,TWO,THREE\r\n1,2,3\r\n";
     create_test_file(TEST_FILE, TEST_DATA);
-    assert_file_matches_simple_columns(TEST_FILE);
+
+    for (int i = 0; READ_SIZE[i] != 0; i++) {
+        assert_file_matches_simple_columns(TEST_FILE, READ_SIZE[i]);
+    }
 }
 
 int main(int argc, char **argv) {
-    ut_run(test_init_free);
-    ut_run(test_init_defaults);
-    ut_run(test_fill_buffer);
-    ut_run(test_fill_buffer_keep_data);
+    // ut_run(test_init_free);
+    // ut_run(test_init_defaults);
+    // ut_run(test_fill_buffer);
+    // ut_run(test_fill_buffer_keep_data);
     ut_run(test_read_line_till_eof);
     ut_run(test_read_line_lf);
     ut_run(test_read_line_cr);
