@@ -18,11 +18,11 @@ char ut_message_buffer[UT_MESSAGE_SIZE] = "";
 #define UT_ANSI_RED
 #define UT_ANSI_GREEN
 #define UT_ANSI_END
-#else //UT_NO_COLOR
+#else  // UT_NO_COLOR
 #define UT_ANSI_RED "\e[0;31m"
 #define UT_ANSI_GREEN "\e[0;32m"
 #define UT_ANSI_END "\e[0m"
-#endif //UT_NO_COLOR
+#endif  // UT_NO_COLOR
 
 #define ut_fail()                                                                         \
     if (ut_assertions_failed == ut_failures) printf(UT_ANSI_RED " FAILED\n" UT_ANSI_END); \
@@ -117,5 +117,5 @@ int ut_end() {
     return 0;
 }
 
-#endif //UNIT_TEST_INCLUDED
-#endif //UNIT_TEST
+#endif  // UNIT_TEST_INCLUDED
+#endif  // UNIT_TEST
