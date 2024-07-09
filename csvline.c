@@ -7,7 +7,7 @@
 #define UNIT_TEST
 #endif
 
-#define DEBUG_ON
+// #define DEBUG_ON
 
 #ifndef DEBUG_ON
 #define DEBUG
@@ -93,8 +93,8 @@ size_t csv_line_fill_buffer(csv_line_s *csv) {
     size_t read = fread(&csv->buffer[csv->end], 1, csv->read_size, csv->file);
     csv->eof = feof(csv->file);
     csv->end += read;
-    csv->buffer[csv->end] = 0;  // todo: for debuging -- remove
-    DEBUG("\n\tread: %d, eof: %zd\n", read, csv->eof);
+    // csv->buffer[csv->end] = 0;  // todo: for debuging -- remove
+    DEBUG("\tread: %d, start: %d, end %d, eof: %zd\n", read, csv->start, csv->end, csv->eof);
     return read;
 }
 
@@ -123,21 +123,22 @@ void csv_line_read_line(csv_line_s *csv) {
     csv->start = csv->next;
 
     DEBUG("\nstart: %d, >%s<\n", csv->start, &csv->buffer[CURRENT_POS]);
-    if (CURRENT_POS == csv->end) {
-        csv_line_fill_buffer(csv);
-        if (CURRENT_POS == csv->end) {
-            return;
-        }
-    }
 
     while (1) {
+        if (CURRENT_POS == csv->end) {
+            csv_line_fill_buffer(csv);
+            if (CURRENT_POS == csv->end) {
+                return;
+            }
+        }
         csv->fields[csv->fields_count++] = pos;
-        DEBUG("field %zd: pos: %zd: %s\n", csv->fields_count, pos, &CURRENT);
+        DEBUG("field %zd: pos: %zd, start: %d, end: %d, current: %d, char: %c (%d)\n", csv->fields_count, pos, csv->start, csv->end,
+              CURRENT_POS, CURRENT, CURRENT);
         while (CURRENT_POS < csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
-            DEBUG("\tpos: %zd < end: %zd, char: %c, pos + 1 == csv->end: %zd\n", pos, csv->end, CURRENT, csv->end - pos - 1);
+            DEBUG("\tpos: %zd, start: %d, end: %d, current: %d, char: %c (%d)\n", pos, csv->start, csv->end, CURRENT_POS, CURRENT, CURRENT);
             if (CURRENT_POS + 1 == csv->end) {
-                DEBUG("\tfillBuffer\n");
                 if (!csv_line_fill_buffer(csv)) {
+                    pos++;
                     CURRENT = 0;
                     return;
                 }
@@ -151,7 +152,6 @@ void csv_line_read_line(csv_line_s *csv) {
             CURRENT = 0;
             pos++;
             if (CURRENT_POS == csv->end) {
-                DEBUG("\tfillBuffer\n");
                 if (!csv_line_fill_buffer(csv)) {
                     return;
                 }
@@ -303,7 +303,7 @@ char *SIMPLE_COLUMNS[][3] = {
     {"1", "2", "3"},
 };
 
-size_t READ_SIZE[] = {9, 0};  // 2, 3, 5, 8, 13, 21, 0};
+size_t READ_SIZE[] = {2, 3, 5, 8, 13, 21, 0};
 assert_file_matches_simple_columns(char *file_name, size_t read_size) {
     printf("\n    ... with read_size = %d", read_size);
     csv_line_s csv;
@@ -317,7 +317,6 @@ assert_file_matches_simple_columns(char *file_name, size_t read_size) {
     ASSERT_COLUMNS_EQUAL(3, SIMPLE_COLUMNS[1]);
 
     csv_line_read_line(&csv);
-    printf("\tEOF: %d\n", csv.eof);
     ut_assert(csv.eof);
 
     csv_line_close_file(&csv);
@@ -355,11 +354,11 @@ void test_read_line_cr_lf() {
 }
 
 int main(int argc, char **argv) {
-    // ut_run(test_init_free);
-    // ut_run(test_init_defaults);
-    // ut_run(test_fill_buffer);
-    // ut_run(test_fill_buffer_keep_data);
-    // ut_run(test_read_line_till_eof);
+    ut_run(test_init_free);
+    ut_run(test_init_defaults);
+    ut_run(test_fill_buffer);
+    ut_run(test_fill_buffer_keep_data);
+    ut_run(test_read_line_till_eof);
     ut_run(test_read_line_lf);
     ut_run(test_read_line_cr);
     ut_run(test_read_line_cr_lf);
