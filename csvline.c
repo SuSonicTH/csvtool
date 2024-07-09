@@ -116,6 +116,12 @@ void csv_line_close_file(csv_line_s *csv) {
 
 #define CURRENT_POS (csv->start + pos)
 #define CURRENT csv->buffer[CURRENT_POS]
+#define FILL_BUFFER_IF_NEEDED_BREAK_ON_EOF \
+    if (CURRENT_POS == csv->end) {         \
+        if (!csv_line_fill_buffer(csv)) {  \
+            break;                         \
+        }                                  \
+    }
 
 void csv_line_read_line(csv_line_s *csv) {
     size_t pos = 0;
@@ -123,21 +129,13 @@ void csv_line_read_line(csv_line_s *csv) {
     csv->start = csv->next;
 
     while (1) {
-        if (CURRENT_POS == csv->end) {
-            csv_line_fill_buffer(csv);
-            if (CURRENT_POS == csv->end) {
-                return;
-            }
-        }
+        FILL_BUFFER_IF_NEEDED_BREAK_ON_EOF
         csv->fields[csv->fields_count++] = pos;
-        // DEBUG_LINE("start: %d, end: %d, pos: %d, current_pos: %d, current: %c (%d)\n", csv->start, csv->end, pos, CURRENT_POS,
-        // CURRENT,CURRENT);
         while (CURRENT_POS < csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
             if (CURRENT_POS + 1 == csv->end) {
                 if (!csv_line_fill_buffer(csv)) {
                     pos++;
                     CURRENT = 0;
-                    csv->next = CURRENT_POS;
                     return;
                 }
             }
@@ -149,24 +147,19 @@ void csv_line_read_line(csv_line_s *csv) {
         } else if (CURRENT == '\r') {
             CURRENT = 0;
             pos++;
-            if (CURRENT_POS == csv->end) {
-                if (!csv_line_fill_buffer(csv)) {
-                    csv->next = CURRENT_POS;
-                    return;
-                }
-            }
+            FILL_BUFFER_IF_NEEDED_BREAK_ON_EOF
             if (CURRENT == '\n') {
                 pos++;
             }
             csv->next = CURRENT_POS;
-            return;
+            break;
         } else {
             CURRENT = 0;
             pos++;
-            csv->next = CURRENT_POS;
-            return;
+            break;
         }
     }
+    csv->next = CURRENT_POS;
 }
 
 #ifdef UNIT_TEST
