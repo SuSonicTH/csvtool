@@ -3,38 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define UNIT_TEST
 // #define DEBUG_ON
-
-#ifndef DEBUG_ON
-#define DEBUG_LINE
-#else
-#define DEBUG_LINE(...)                                 \
-    printf("DEBUG %s() line %d: ", __func__, __LINE__); \
-    printf(__VA_ARGS__);                                \
-    fflush(stdout);
-
-#define DEBUG_PRINT(...) \
-    printf(__VA_ARGS__); \
-    fflush(stdout);
-
-#endif
-
-typedef struct {
-    char *file_name;
-    FILE *file;
-    uint8_t *buffer;
-    size_t size;
-    size_t read_size;
-    char separator;
-
-    size_t start;
-    size_t next;
-    size_t end;
-
-    size_t *fields;
-    size_t fields_size;
-    size_t fields_count;
-} csv_line_s;
+#include "csvline.h"
+#include "debug.h"
 
 #define DEFAULT_READ_SIZE 1024
 #define DEFAULT_FIELD_SIZE 128
