@@ -21,6 +21,6 @@ typedef struct {
 csv_line_s *csv_line_init(csv_line_s *csv, char separator, size_t read_size, size_t fields_size);
 void csv_line_free(csv_line_s *csv);
 void csv_line_open_file(csv_line_s *csv, char *file_name);
-void csv_line_read_line(csv_line_s *csv);
+size_t csv_line_read_line(csv_line_s *csv);
 
 #endif  // CSV_LINE_INCLUDED

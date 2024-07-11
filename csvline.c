@@ -93,7 +93,7 @@ void csv_line_close_file(csv_line_s *csv) {
         }                                  \
     }
 
-void csv_line_read_line(csv_line_s *csv) {
+size_t csv_line_read_line(csv_line_s *csv) {
     size_t pos = 0;
     csv->fields_count = 0;
     csv->start = csv->next;
@@ -107,7 +107,7 @@ void csv_line_read_line(csv_line_s *csv) {
                 if (!csv_line_fill_buffer(csv)) {
                     pos++;
                     CURRENT = 0;
-                    return;
+                    return csv->fields_count;
                 }
             }
             pos++;
@@ -131,6 +131,7 @@ void csv_line_read_line(csv_line_s *csv) {
         }
     }
     csv->next = CURRENT_POS;
+    return csv->fields_count;
 }
 
 #ifdef UNIT_TEST
