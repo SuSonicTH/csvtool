@@ -3,11 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef UNIT_TEST
-#define UNIT_TEST
-#endif
-
-#define DEBUG_ON
+// #define DEBUG_ON
 
 #ifndef DEBUG_ON
 #define DEBUG_LINE
@@ -29,6 +25,7 @@ typedef struct {
     uint8_t *buffer;
     size_t size;
     size_t read_size;
+    char separator;
 
     size_t start;
     size_t next;
@@ -42,7 +39,7 @@ typedef struct {
 #define DEFAULT_READ_SIZE 1024
 #define DEFAULT_FIELD_SIZE 128
 
-csv_line_s *csv_line_init(csv_line_s *csv, size_t read_size, size_t fields_size) {
+csv_line_s *csv_line_init(csv_line_s *csv, char separator, size_t read_size, size_t fields_size) {
     if (csv == NULL) {
         return NULL;
     }
@@ -50,6 +47,7 @@ csv_line_s *csv_line_init(csv_line_s *csv, size_t read_size, size_t fields_size)
 
     csv->read_size = read_size == 0 ? DEFAULT_READ_SIZE : read_size;
     csv->size = csv->read_size;
+    csv->separator = separator;
     if ((csv->buffer = malloc(csv->size + 1)) == NULL) {
         return NULL;
     }
@@ -127,11 +125,12 @@ void csv_line_read_line(csv_line_s *csv) {
     size_t pos = 0;
     csv->fields_count = 0;
     csv->start = csv->next;
+    char separator = csv->separator;
 
     while (1) {
         FILL_BUFFER_IF_NEEDED_BREAK_ON_EOF
         csv->fields[csv->fields_count++] = pos;
-        while (CURRENT_POS < csv->end && CURRENT != ',' && CURRENT != '\r' && CURRENT != '\n') {
+        while (CURRENT_POS < csv->end && CURRENT != separator && CURRENT != '\r' && CURRENT != '\n') {
             if (CURRENT_POS + 1 == csv->end) {
                 if (!csv_line_fill_buffer(csv)) {
                     pos++;
@@ -141,7 +140,7 @@ void csv_line_read_line(csv_line_s *csv) {
             }
             pos++;
         }
-        if (CURRENT == ',') {
+        if (CURRENT == separator) {
             CURRENT = 0;
             pos++;
         } else if (CURRENT == '\r') {
@@ -167,7 +166,7 @@ void csv_line_read_line(csv_line_s *csv) {
 
 void test_init_free() {
     csv_line_s csv;
-    csv_line_s *ret = csv_line_init(&csv, 10, 2);
+    csv_line_s *ret = csv_line_init(&csv, ',', 10, 2);
 
     ut_assert(ret == &csv);
 
@@ -185,7 +184,7 @@ void test_init_free() {
 
 void test_init_defaults() {
     csv_line_s csv;
-    csv_line_s *ret = csv_line_init(&csv, 0, 0);
+    csv_line_s *ret = csv_line_init(&csv, ',', 0, 0);
 
     ut_assert(ret == &csv);
 
@@ -213,7 +212,7 @@ void test_fill_buffer() {
     create_test_file(TEST_FILE, TEST_DATA);
 
     csv_line_s csv;
-    csv_line_init(&csv, 2, 0);
+    csv_line_init(&csv, ',', 2, 0);
     csv_line_open_file(&csv, TEST_FILE);
 
     while (csv_line_fill_buffer(&csv));
@@ -235,7 +234,7 @@ void test_fill_buffer_keep_data() {
     create_test_file(TEST_FILE, TEST_DATA);
 
     csv_line_s csv;
-    csv_line_init(&csv, 10, 0);
+    csv_line_init(&csv, ',', 10, 0);
 
     csv.file = fopen(TEST_FILE, "rb");
     ut_assert(ut_is_not_NULL(csv.file));
@@ -268,7 +267,7 @@ void test_read_line_till_eof() {
     create_test_file(TEST_FILE, TEST_DATA);
 
     csv_line_s csv;
-    csv_line_init(&csv, 20, 5);
+    csv_line_init(&csv, ',', 20, 5);
     csv_line_open_file(&csv, TEST_FILE);
     csv_line_read_line(&csv);
 
@@ -280,11 +279,11 @@ char *SIMPLE_COLUMNS[][3] = {
     {"1", "2", "3"},
 };
 
-size_t READ_SIZE[] = {2, 3, 5, 8, 13, 21, 0};
-assert_file_matches_simple_columns(char *file_name, size_t read_size) {
+size_t READ_SIZE[] = {1, 2, 3, 5, 8, 13, 21, 1024, 0};
+assert_file_matches_simple_columns(char *file_name, char separator, size_t read_size) {
     printf("\n    ... with read_size = %d", read_size);
     csv_line_s csv;
-    csv_line_init(&csv, read_size, 5);
+    csv_line_init(&csv, separator, read_size, 5);
     csv_line_open_file(&csv, file_name);
 
     csv_line_read_line(&csv);
@@ -306,7 +305,7 @@ void test_read_line_lf() {
     create_test_file(TEST_FILE, TEST_DATA);
 
     for (int i = 0; READ_SIZE[i] != 0; i++) {
-        assert_file_matches_simple_columns(TEST_FILE, READ_SIZE[i]);
+        assert_file_matches_simple_columns(TEST_FILE, ',', READ_SIZE[i]);
     }
 }
 
@@ -316,7 +315,7 @@ void test_read_line_cr() {
     create_test_file(TEST_FILE, TEST_DATA);
 
     for (int i = 0; READ_SIZE[i] != 0; i++) {
-        assert_file_matches_simple_columns(TEST_FILE, READ_SIZE[i]);
+        assert_file_matches_simple_columns(TEST_FILE, ',', READ_SIZE[i]);
     }
 }
 
@@ -326,8 +325,16 @@ void test_read_line_cr_lf() {
     create_test_file(TEST_FILE, TEST_DATA);
 
     for (int i = 0; READ_SIZE[i] != 0; i++) {
-        assert_file_matches_simple_columns(TEST_FILE, READ_SIZE[i]);
+        assert_file_matches_simple_columns(TEST_FILE, ',', READ_SIZE[i]);
     }
+}
+
+void test_read_line_semicolon() {
+    char *TEST_FILE = "test/test_read_line_cr.csv";
+    char *TEST_DATA = "ONE;TWO;THREE\n1;2;3\n";
+    create_test_file(TEST_FILE, TEST_DATA);
+
+    assert_file_matches_simple_columns(TEST_FILE, ';', 1024);
 }
 
 int main(int argc, char **argv) {
@@ -339,6 +346,7 @@ int main(int argc, char **argv) {
     ut_run(test_read_line_lf);
     ut_run(test_read_line_cr);
     ut_run(test_read_line_cr_lf);
+    ut_run(test_read_line_semicolon);
     return ut_end();
 }
 
